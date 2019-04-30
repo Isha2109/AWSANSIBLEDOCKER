@@ -1,0 +1,119 @@
+– hosts: all
+remote_user: root
+connection: local
+become: true
+
+vars_files:
+– /etc/ansible/playbooks/vars/vars.yml
+
+tasks:
+– name: Launching EC2 instance
+local_action: ec2
+aws_access_key={{ AKIAJCHL6DCRMRWQADVQ }}
+aws_secret_key={{ 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 }}
+instance_type={{ t2.micro }}
+image={{ image }}
+region={{ region }}
+key_name={{ ishalal }}
+count={{ count }}
+group={{ group }}
+wait={{ wait }}
+instance_tags={{ isha }}
+register: ec2
+
+– name: Waiting
+pause: minutes=2
+
+– name: Creating Hosts group
+add_host: hostname={{ item.public_ip }}
+groupname=launched
+with_items: ‘{{ ec2.instances }}’
+
+– name: Waiting for SSH to come up
+wait_for: host={{ item.ec2-54-175-42-195.compute-1.amazonaws.com }}
+port=22
+delay=60
+timeout=320
+state=started
+with_items: ‘{{ ec2.instances }}’
+
+– name: Install Docker in Ec2
+hosts: launched
+remote_user: ec2-user
+become: true
+gather_facts: true
+
+vars:
+service_name: docker
+python_pip: python-pip
+
+tasks:
+– name: Installing Docker
+yum: pkg={{ item }} state=latest
+with_items:
+– docker
+– python-pip
+
+– name: Checking Docker installed
+stat: path=/etc/init.d/{{ service_name }}
+register: service_status
+
+– name: Starting Docker
+service: name={{ service_name }} state=started
+when: service_status.stat.exists
+register: service_started
+
+– name: Creating docker build directory
+file: path=/mydir state=directory owner=root group=root mode=0755
+
+– name: Copying local dockerfiles to ec2
+copy:
+src: /dockerfiles/
+dest: /mydir/
+owner: root
+group: root
+mode: 0755
+
+– name: Switching to Build directory
+command: chdir=/mydir/ ls
+
+– name: Upgrading pip
+command: pip install –upgrade pip
+
+– name: Creating soft link
+file: src=/usr/local/bin/pip dest=/usr/bin/pip state=link
+
+– name: Installing docker-py
+pip: name=docker-py state=latest
+
+– name: Building raw docker
+docker_image:
+repository=docker.io/centos
+name=rawdocker
+dockerfile=dockerfile.java
+path=/mydir
+state=present
+pull=false
+
+– name: Building HTTPD docker
+docker_image:
+repository=rawdocker
+name=httpddocker
+dockerfile=dockerfile.web
+path=/mydir
+state=present
+pull=false
+
+– name: Running the launched docker container
+docker_container:
+name: docker1
+image: httpddocker
+state: started
+command: /usr/sbin/init
+privileged: true
+interactive: true
+restart_policy: always
+exposed_ports: 80
+published_ports: 8081:80
+hostname: mydocker.hadoop.com
+tty: yes
