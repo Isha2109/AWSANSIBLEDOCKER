@@ -9,8 +9,8 @@ vars_files:
 tasks:
 – name: Launching EC2 instance
 local_action: ec2
-aws_access_key={{ AKIAJCHL6DCRMRWQADVQ }}
-aws_secret_key={{ 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 }}
+aws_access_key={{  }}
+aws_secret_key={{ }}
 instance_type={{ t2.micro }}
 image={{ image }}
 region={{ region }}
